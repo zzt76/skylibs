@@ -104,61 +104,8 @@ def imread(filename, bufferImage=None, rgb=True):
     return data
 
 
-def imwrite(filename, arr, **params):
-    """
-    Write an .exr file from an input array.
-
-    Optional params : 
-    channel_names = name of the channels, defaults to "RGB" for 3-channel, "Y" for grayscale, and "Y{n}" for N channels.
-    compression = 'NONE' | 'RLE' | 'ZIPS' | 'ZIP' | 'PIZ' | 'PXR24' (default PIZ)
-    pixeltype = 'HALF' | 'FLOAT' | 'UINT' (default : dtype of the input array if float16, float32 or uint32, else float16)
-
-    """
-
-    if arr.ndim == 3:
-        h, w, d = arr.shape
-    elif arr.ndim == 2:
-        h, w = arr.shape
-        d = 1
-    else:
-        raise Exception("Could not understand dimensions in array.")
-    
-    if "channel_names" in params:
-        ch_names = params["channel_names"]
-        assert len(ch_names) >= d, "Provide as many channel names as channels in the array."
-    else:
-        if d == 1:
-            ch_names = ["Y"]
-        elif d == 3:
-            ch_names = ["R","G","B"]
-        elif d == 4:
-            ch_names = ["R","G","B","A"]
-        else:
-            length = len(str(d - 1))
-            ch_names = ['Y{}'.format(str(idx).zfill(length)) for idx in range(d)]
-
-    if 'OpenEXR' not in globals():
-        print(">>> Install OpenEXR-Python with `conda install -c conda-forge openexr openexr-python`\n\n")
-        raise Exception("Please Install OpenEXR-Python")
-
-    compression = 'PIZ' if not 'compression' in params or \
-                     params['compression'] not in ('NONE', 'RLE', 'ZIPS', 'ZIP', 'PIZ', 'PXR24', 'B44', 'B44A', 'DWAA', 'DWAB') else params['compression']
-    imath_compression = {'NONE' : Imath.Compression(Imath.Compression.NO_COMPRESSION),
-                            'RLE' : Imath.Compression(Imath.Compression.RLE_COMPRESSION),
-                            'ZIPS' : Imath.Compression(Imath.Compression.ZIPS_COMPRESSION),
-                            'ZIP' : Imath.Compression(Imath.Compression.ZIP_COMPRESSION),
-                            'PIZ' : Imath.Compression(Imath.Compression.PIZ_COMPRESSION),
-                            'PXR24' : Imath.Compression(Imath.Compression.PXR24_COMPRESSION),
-                            'B44' : Imath.Compression(Imath.Compression.B44_COMPRESSION),
-                            'B44A' : Imath.Compression(Imath.Compression.B44A_COMPRESSION),
-                            'DWAA' : Imath.Compression(Imath.Compression.DWAA_COMPRESSION),
-                            'DWAB' : Imath.Compression(Imath.Compression.DWAB_COMPRESSION)}[compression]
-
-
-    if 'pixeltype' in params and params['pixeltype'] in ('HALF', 'FLOAT', 'UINT'):
-        # User-defined pixel type
-        pixformat = params['pixeltype']
-    elif arr.dtype == np.float32:
+def get_pixformat(arr):
+    if arr.dtype == np.float32:
         pixformat = 'FLOAT'
     elif arr.dtype == np.uint32:
         pixformat = 'UINT'
@@ -181,13 +128,84 @@ def imwrite(filename, arr, **params):
                             '(a value would be rounded to infinity or 0)')
         warnings.warn("imwrite received an array with dtype={}, which cannot be saved in EXR format."
                       "Will fallback to {}, which can represent all the values in the array.".format(arr.dtype, pixformat), RuntimeWarning)
+    
+    return pixformat
 
+def get_imath_numpy_pixformat(pixformat):
     imath_pixformat = {'HALF' : Imath.PixelType(Imath.PixelType.HALF),
                         'FLOAT' : Imath.PixelType(Imath.PixelType.FLOAT),
                         'UINT' : Imath.PixelType(Imath.PixelType.UINT)}[pixformat]
     numpy_pixformat = {'HALF' : 'float16',
                         'FLOAT' : 'float32',
                         'UINT' : 'uint32'}[pixformat]      # Not sure for the last one...
+
+    return imath_pixformat, numpy_pixformat
+
+def get_channel_names(d):
+    if d == 1:
+        ch_names = ["Y"]
+    elif d == 3:
+        ch_names = ["R","G","B"]
+    elif d == 4:
+        ch_names = ["R","G","B","A"]
+    else:
+        length = len(str(d - 1))
+        ch_names = ['Y{}'.format(str(idx).zfill(length)) for idx in range(d)]
+
+    return ch_names
+
+def imwrite(filename, arr, **params):
+    """
+    Write an .exr file from an input array or a dictionary of arrays.
+
+    Optional params : 
+    channel_names = name of the channels, defaults to "RGB" for 3-channel, "Y" for grayscale, and "Y{n}" for N channels.
+    compression = 'NONE' | 'RLE' | 'ZIPS' | 'ZIP' | 'PIZ' | 'PXR24' (default PIZ)
+    pixeltype = 'HALF' | 'FLOAT' | 'UINT' (default : dtype of the input array if float16, float32 or uint32, else float16)
+
+    """
+
+    if isinstance(arr, dict):
+        imwrite_dict(filename, arr, **params)
+        return
+
+    if arr.ndim == 3:
+        h, w, d = arr.shape
+    elif arr.ndim == 2:
+        h, w = arr.shape
+        d = 1
+    else:
+        raise Exception("Could not understand dimensions in array.")
+    
+    if "channel_names" in params:
+        ch_names = params["channel_names"]
+        assert len(ch_names) >= d, "Provide as many channel names as channels in the array."
+    else:
+        ch_names = get_channel_names(d)
+
+    if 'OpenEXR' not in globals():
+        print(">>> Install OpenEXR-Python with `conda install -c conda-forge openexr openexr-python`\n\n")
+        raise Exception("Please Install OpenEXR-Python")
+
+    compression = 'PIZ' if not 'compression' in params or \
+                     params['compression'] not in ('NONE', 'RLE', 'ZIPS', 'ZIP', 'PIZ', 'PXR24', 'B44', 'B44A', 'DWAA', 'DWAB') else params['compression']
+    imath_compression = {'NONE' : Imath.Compression(Imath.Compression.NO_COMPRESSION),
+                            'RLE' : Imath.Compression(Imath.Compression.RLE_COMPRESSION),
+                            'ZIPS' : Imath.Compression(Imath.Compression.ZIPS_COMPRESSION),
+                            'ZIP' : Imath.Compression(Imath.Compression.ZIP_COMPRESSION),
+                            'PIZ' : Imath.Compression(Imath.Compression.PIZ_COMPRESSION),
+                            'PXR24' : Imath.Compression(Imath.Compression.PXR24_COMPRESSION),
+                            'B44' : Imath.Compression(Imath.Compression.B44_COMPRESSION),
+                            'B44A' : Imath.Compression(Imath.Compression.B44A_COMPRESSION),
+                            'DWAA' : Imath.Compression(Imath.Compression.DWAA_COMPRESSION),
+                            'DWAB' : Imath.Compression(Imath.Compression.DWAB_COMPRESSION)}[compression]
+
+    if 'pixeltype' in params and params['pixeltype'] in ('HALF', 'FLOAT', 'UINT'):
+        # User-defined pixel type
+        pixformat = params['pixeltype']
+    else:
+        pixformat = get_pixformat(arr)
+    imath_pixformat, numpy_pixformat = get_imath_numpy_pixformat(pixformat)
 
     # Convert to strings
     if d == 1:
@@ -214,6 +232,76 @@ def imwrite(filename, arr, **params):
 
 
 imsave = imwrite
+
+
+def imwrite_dict(filename, imageDict, **params):
+    """
+    Write an .exr file from an input dictionary of arrays.
+
+    Optional params : 
+    channel_names = name of the channels, defaults to "RGB" for 3-channel, "Y" for grayscale, and "Y{n}" for N channels.
+    compression = 'NONE' | 'RLE' | 'ZIPS' | 'ZIP' | 'PIZ' | 'PXR24' (default PIZ)
+    pixeltype = 'HALF' | 'FLOAT' | 'UINT' (default : dtype of the input array if float16, float32 or uint32, else float16)
+
+    """
+
+    first_im = list(imageDict.values())[0]
+    # Assume all arrays have the same shape
+    h, w = first_im.shape[0], first_im.shape[1]
+
+    # Get compression and pixel type
+    compression = 'PIZ' if not 'compression' in params or \
+                     params['compression'] not in ('NONE', 'RLE', 'ZIPS', 'ZIP', 'PIZ', 'PXR24', 'B44', 'B44A', 'DWAA', 'DWAB') else params['compression']
+    imath_compression = {'NONE' : Imath.Compression(Imath.Compression.NO_COMPRESSION),
+                            'RLE' : Imath.Compression(Imath.Compression.RLE_COMPRESSION),
+                            'ZIPS' : Imath.Compression(Imath.Compression.ZIPS_COMPRESSION),
+                            'ZIP' : Imath.Compression(Imath.Compression.ZIP_COMPRESSION),
+                            'PIZ' : Imath.Compression(Imath.Compression.PIZ_COMPRESSION),
+                            'PXR24' : Imath.Compression(Imath.Compression.PXR24_COMPRESSION),
+                            'B44' : Imath.Compression(Imath.Compression.B44_COMPRESSION),
+                            'B44A' : Imath.Compression(Imath.Compression.B44A_COMPRESSION),
+                            'DWAA' : Imath.Compression(Imath.Compression.DWAA_COMPRESSION),
+                            'DWAB' : Imath.Compression(Imath.Compression.DWAB_COMPRESSION)}[compression]
+
+    if 'pixeltype' in params and params['pixeltype'] in ('HALF', 'FLOAT', 'UINT'):
+        # User-defined pixel type
+        pixformat = params['pixeltype']
+    else:
+        pixformat = get_pixformat(first_im)
+    imath_pixformat, numpy_pixformat = get_imath_numpy_pixformat(pixformat)
+
+    # Get channel names and data for each image
+    header_channels = {}
+    data_dict = {}
+    for im_name, im in imageDict.items():
+        if im.ndim == 3:
+            d = im.shape[2]
+        elif im.ndim == 2:
+            d = 1
+        else:
+            raise Exception("Could not understand dimensions in array.")
+        
+        if "channel_names" in params:
+            ch_names = params['channel_names']
+            assert len(ch_names) >= d, "Provide as many channel names as channels in the array."
+        else:
+            ch_names = get_channel_names(d)
+
+        for index, ch_name in enumerate(ch_names):
+            header_channels[f'{im_name}.{ch_name}'] = Imath.Channel(imath_pixformat, 1, 1)
+            if d == 1:
+                data_dict[f'{im_name}.{ch_name}'] = im.astype(numpy_pixformat).tostring()
+            else:
+                data_dict[f'{im_name}.{ch_name}'] = im[:,:,index].astype(numpy_pixformat).tostring()
+
+    outHeader = OpenEXR.Header(w, h)
+    outHeader['compression'] = imath_compression        # Apply compression
+    outHeader['channels'] = header_channels
+
+    # Write the image dictionary to the output file
+    out = OpenEXR.OutputFile(filename, outHeader)
+    out.writePixels(data_dict)
+    out.close()
 
 
 __all__ = ['imread', 'imwrite', 'imsave']
