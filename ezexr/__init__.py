@@ -103,6 +103,20 @@ def imread(filename, bufferImage=None, rgb=True):
     
     return data
 
+def get_imath_compression(params):
+    compression = 'PIZ' if not 'compression' in params or \
+        params['compression'] not in ('NONE', 'RLE', 'ZIPS', 'ZIP', 'PIZ', 'PXR24', 'B44', 'B44A', 'DWAA', 'DWAB') else params['compression']
+    imath_compression = {'NONE': Imath.Compression(Imath.Compression.NO_COMPRESSION),
+                         'RLE': Imath.Compression(Imath.Compression.RLE_COMPRESSION),
+                         'ZIPS': Imath.Compression(Imath.Compression.ZIPS_COMPRESSION),
+                         'ZIP': Imath.Compression(Imath.Compression.ZIP_COMPRESSION),
+                         'PIZ': Imath.Compression(Imath.Compression.PIZ_COMPRESSION),
+                         'PXR24': Imath.Compression(Imath.Compression.PXR24_COMPRESSION),
+                         'B44': Imath.Compression(Imath.Compression.B44_COMPRESSION),
+                         'B44A': Imath.Compression(Imath.Compression.B44A_COMPRESSION),
+                         'DWAA': Imath.Compression(Imath.Compression.DWAA_COMPRESSION),
+                         'DWAB': Imath.Compression(Imath.Compression.DWAB_COMPRESSION)}[compression]
+    return imath_compression
 
 def get_pixformat(arr):
     if arr.dtype == np.float32:
@@ -160,7 +174,7 @@ def imwrite(filename, arr, **params):
 
     Optional params : 
     channel_names = name of the channels, defaults to "RGB" for 3-channel, "Y" for grayscale, and "Y{n}" for N channels.
-    compression = 'NONE' | 'RLE' | 'ZIPS' | 'ZIP' | 'PIZ' | 'PXR24' (default PIZ)
+    compression = 'NONE' | 'RLE' | 'ZIPS' | 'ZIP' | 'PIZ' | 'PXR24' | 'B44' | 'B44A' | 'DWAA' | 'DWAB' (default PIZ)
     pixeltype = 'HALF' | 'FLOAT' | 'UINT' (default : dtype of the input array if float16, float32 or uint32, else float16)
 
     """
@@ -187,19 +201,10 @@ def imwrite(filename, arr, **params):
         print(">>> Install OpenEXR-Python with `conda install -c conda-forge openexr openexr-python`\n\n")
         raise Exception("Please Install OpenEXR-Python")
 
-    compression = 'PIZ' if not 'compression' in params or \
-                     params['compression'] not in ('NONE', 'RLE', 'ZIPS', 'ZIP', 'PIZ', 'PXR24', 'B44', 'B44A', 'DWAA', 'DWAB') else params['compression']
-    imath_compression = {'NONE' : Imath.Compression(Imath.Compression.NO_COMPRESSION),
-                            'RLE' : Imath.Compression(Imath.Compression.RLE_COMPRESSION),
-                            'ZIPS' : Imath.Compression(Imath.Compression.ZIPS_COMPRESSION),
-                            'ZIP' : Imath.Compression(Imath.Compression.ZIP_COMPRESSION),
-                            'PIZ' : Imath.Compression(Imath.Compression.PIZ_COMPRESSION),
-                            'PXR24' : Imath.Compression(Imath.Compression.PXR24_COMPRESSION),
-                            'B44' : Imath.Compression(Imath.Compression.B44_COMPRESSION),
-                            'B44A' : Imath.Compression(Imath.Compression.B44A_COMPRESSION),
-                            'DWAA' : Imath.Compression(Imath.Compression.DWAA_COMPRESSION),
-                            'DWAB' : Imath.Compression(Imath.Compression.DWAB_COMPRESSION)}[compression]
+    # Get compression type (default to PIZ)
+    imath_compression = get_imath_compression(params)
 
+    # Get pixel type (default to float16)
     if 'pixeltype' in params and params['pixeltype'] in ('HALF', 'FLOAT', 'UINT'):
         # User-defined pixel type
         pixformat = params['pixeltype']
@@ -240,7 +245,7 @@ def imwrite_dict(filename, imageDict, **params):
 
     Optional params : 
     channel_names = name of the channels, defaults to "RGB" for 3-channel, "Y" for grayscale, and "Y{n}" for N channels.
-    compression = 'NONE' | 'RLE' | 'ZIPS' | 'ZIP' | 'PIZ' | 'PXR24' (default PIZ)
+    compression = 'NONE' | 'RLE' | 'ZIPS' | 'ZIP' | 'PIZ' | 'PXR24' | 'B44' | 'B44A' | 'DWAA' | 'DWAB' (default PIZ)
     pixeltype = 'HALF' | 'FLOAT' | 'UINT' (default : dtype of the input array if float16, float32 or uint32, else float16)
 
     """
@@ -249,20 +254,10 @@ def imwrite_dict(filename, imageDict, **params):
     # Assume all arrays have the same shape
     h, w = first_im.shape[0], first_im.shape[1]
 
-    # Get compression and pixel type
-    compression = 'PIZ' if not 'compression' in params or \
-                     params['compression'] not in ('NONE', 'RLE', 'ZIPS', 'ZIP', 'PIZ', 'PXR24', 'B44', 'B44A', 'DWAA', 'DWAB') else params['compression']
-    imath_compression = {'NONE' : Imath.Compression(Imath.Compression.NO_COMPRESSION),
-                            'RLE' : Imath.Compression(Imath.Compression.RLE_COMPRESSION),
-                            'ZIPS' : Imath.Compression(Imath.Compression.ZIPS_COMPRESSION),
-                            'ZIP' : Imath.Compression(Imath.Compression.ZIP_COMPRESSION),
-                            'PIZ' : Imath.Compression(Imath.Compression.PIZ_COMPRESSION),
-                            'PXR24' : Imath.Compression(Imath.Compression.PXR24_COMPRESSION),
-                            'B44' : Imath.Compression(Imath.Compression.B44_COMPRESSION),
-                            'B44A' : Imath.Compression(Imath.Compression.B44A_COMPRESSION),
-                            'DWAA' : Imath.Compression(Imath.Compression.DWAA_COMPRESSION),
-                            'DWAB' : Imath.Compression(Imath.Compression.DWAB_COMPRESSION)}[compression]
+    # Get compression type (default to PIZ)
+    imath_compression = get_imath_compression(params)
 
+    # Get pixel type (default to float16)
     if 'pixeltype' in params and params['pixeltype'] in ('HALF', 'FLOAT', 'UINT'):
         # User-defined pixel type
         pixformat = params['pixeltype']
